@@ -10,7 +10,13 @@ public class GameManager : MonoBehaviour
         FruitMadness,
         None
     }
+    public enum PossibleConnections
+    {
+        Adjacent
+    }
+
     private SlotBonus currentBonus = SlotBonus.None;
+    public PossibleConnections connectionToCheck;
 
     [System.Serializable]
     public class Row
@@ -34,12 +40,25 @@ public class GameManager : MonoBehaviour
     {
         public Vector3 spawnLocation;
         public float timeToEndSpin;
-        public bool canSpawnSymbol;
-        public float timeToNextSpawn;
-        public float timeToStop;
-        public float speed;
-        public float spawnTimer;
-        public bool canMove;
+        private bool canSpawnSymbol;
+        private float timeToNextSpawn;
+        private float timeToStop;
+        private float speed;
+        private float spawnTimer;
+        private bool canMove;
+
+        public float GetTimeToStop() { return timeToStop; }
+        public float GetSpeed() { return speed; }
+        public bool GetCanMove() { return canMove; }
+        public bool GetCanSpawnSymbol() { return canSpawnSymbol; }
+        public float GetTimeToNextSpawn() { return timeToNextSpawn; }
+        public float GetSpawnTimer() { return spawnTimer; }
+        public void SetSpeed(float spd) { speed = spd; }
+        public void SetTimeToNextSpawn(float spawnTime) { timeToNextSpawn = spawnTime; }
+        public void SetTimeToStop(float time) { timeToStop = time; }
+        public void SetCanSpawnSymbol(bool canSpawn) { canSpawnSymbol = canSpawn; }
+        public void SetSpawnTimer(float time) { spawnTimer = time; }
+        public void SetCanMove(bool move) { canMove = move; }
     }
     public Column[] columns;
 
@@ -56,7 +75,7 @@ public class GameManager : MonoBehaviour
     private float smallestDistance = 0;
     private bool moveObjects = false;
     private int coinBetSize = 10;
-    public float spawnDecreaseInterval, speedDecreaseInterval, moveObjectsInterval;
+    public float spawnDecreaseInterval, speedDecreaseInterval, moveToSlotInterval;
     public string wildObjectName, scatterObjectName;
     public int requiredScattersForBonus;
     [SerializeField] private int baseBonusSpins;
@@ -75,7 +94,7 @@ public class GameManager : MonoBehaviour
 
     private int currentBonusSpin, currentMaxBonusSpins;
     private int coinsWonTracker = 0;
-    private float lightningSpawnDecreaseInterval, lightningSpeedDecreaseInterval, lightningMoveObjectsInterval, lightningInitialSpeedPerFrame, lightningTimeToNextSpawnBase;
+    private float lightningSpawnDecreaseInterval, lightningSpeedDecreaseInterval, lightningMoveToSlotInterval, lightningInitialSpeedPerFrame, lightningTimeToNextSpawnBase;
     private bool lightning = false;
     public Toggle lightningToggle;
 
@@ -85,7 +104,7 @@ public class GameManager : MonoBehaviour
         playerStats = GameObject.FindGameObjectWithTag("Player").GetComponent<PlayerManager>();
         lightningSpawnDecreaseInterval = spawnDecreaseInterval;
         lightningSpeedDecreaseInterval = speedDecreaseInterval * 4;
-        lightningMoveObjectsInterval = moveObjectsInterval * 6;
+        lightningMoveToSlotInterval = moveToSlotInterval * 6;
         lightningInitialSpeedPerFrame = initialSpeedPerFrame * 3f;
         lightningTimeToNextSpawnBase = timeToNextSpawnBase / 3f;
     }
@@ -98,34 +117,34 @@ public class GameManager : MonoBehaviour
             {
                 for (int i = 0; i < columns.Length; i++)
                 {
-                    if (columns[i].timeToStop - Time.time <= 1.5f && columns[i].timeToStop - Time.time > 0)
+                    if (columns[i].GetTimeToStop() - Time.time <= 1.5f && columns[i].GetTimeToStop() - Time.time > 0)
                     {
-                        if (columns[i].speed != 0)
+                        if (columns[i].GetSpeed() != 0)
                         {
                             if (!lightning || currentBonus != SlotBonus.None)
                             {
-                                columns[i].speed += speedDecreaseInterval * Time.deltaTime;
-                                columns[i].timeToNextSpawn += spawnDecreaseInterval * Time.deltaTime;
+                                columns[i].SetSpeed(columns[i].GetSpeed() + (speedDecreaseInterval * Time.deltaTime));
+                                columns[i].SetTimeToNextSpawn(columns[i].GetTimeToNextSpawn() + (spawnDecreaseInterval * Time.deltaTime));
                             }
                             else
                             {
-                                columns[i].speed += lightningSpeedDecreaseInterval * Time.deltaTime;
-                                columns[i].timeToNextSpawn += lightningSpawnDecreaseInterval * Time.deltaTime;
+                                columns[i].SetSpeed(columns[i].GetSpeed() + (lightningSpeedDecreaseInterval * Time.deltaTime));
+                                columns[i].SetTimeToNextSpawn(columns[i].GetTimeToNextSpawn() + (lightningSpawnDecreaseInterval * Time.deltaTime));
                             }
                         }
                     }
-                    else if (columns[i].timeToStop - Time.time <= 0)
+                    else if (columns[i].GetTimeToStop() - Time.time <= 0)
                     {
-                        columns[i].speed = 0;
-                        columns[i].canSpawnSymbol = false;
-                        columns[i].timeToStop += 1000;
+                        columns[i].SetSpeed(0);
+                        columns[i].SetCanSpawnSymbol(false);
+                        columns[i].SetTimeToStop(columns[i].GetTimeToStop() + 1000);
                         ArrangeCol(i);
                     }
                 }
                 bool stoppedSlot = true;
                 for(int i = 0; i < columns.Length; i++)
                 {
-                    if(columns[i].speed != 0)
+                    if(columns[i].GetSpeed() != 0)
                     {
                         stoppedSlot = false;
                     }
@@ -144,20 +163,20 @@ public class GameManager : MonoBehaviour
                 {
                     if (lightning && currentBonus == SlotBonus.None)
                     {
-                        columns[i].timeToStop = Time.time + (columns[i].timeToEndSpin / 3);
-                        columns[i].speed = lightningInitialSpeedPerFrame;
+                        columns[i].SetTimeToStop(Time.time + (columns[i].timeToEndSpin / 3));
+                        columns[i].SetSpeed(lightningInitialSpeedPerFrame);
                     }
                     else
                     {
-                        columns[i].timeToStop = Time.time + columns[i].timeToEndSpin;
-                        columns[i].speed = initialSpeedPerFrame;
+                        columns[i].SetTimeToStop(Time.time + columns[i].timeToEndSpin);
+                        columns[i].SetSpeed(initialSpeedPerFrame);
                     }
                     timerActivated = true;
                 }
                 
                 for (int i = 0; i < columns.Length; i++)
                 {
-                    columns[i].spawnTimer = Time.time + columns[i].timeToNextSpawn;
+                    columns[i].SetSpawnTimer(Time.time + columns[i].GetTimeToNextSpawn());
                     
                 }
             }
@@ -165,9 +184,9 @@ public class GameManager : MonoBehaviour
             //spawning
             for (int i = 0; i < columns.Length; i++)
             {
-                if (columns[i].spawnTimer < Time.time && columns[i].canSpawnSymbol)
+                if (columns[i].GetSpawnTimer() < Time.time && columns[i].GetCanSpawnSymbol())
                 {
-                    columns[i].spawnTimer = Time.time + columns[i].timeToNextSpawn;
+                    columns[i].SetSpawnTimer(Time.time + columns[i].GetTimeToNextSpawn());
                     Spawn(columns[i].spawnLocation);
                 }
             }
@@ -179,7 +198,7 @@ public class GameManager : MonoBehaviour
                 {
                     if (symbol.transform.position.x == columns[i].spawnLocation.x)
                     {
-                        symbol.transform.position = new Vector3(symbol.transform.position.x, symbol.transform.position.y + columns[i].speed * Time.deltaTime, symbol.transform.position.z);
+                        symbol.transform.position = new Vector3(symbol.transform.position.x, symbol.transform.position.y + columns[i].GetSpeed() * Time.deltaTime, symbol.transform.position.z);
                     }
                 }
             }
@@ -192,17 +211,17 @@ public class GameManager : MonoBehaviour
             {
                 for (int row = 0; row < rows.Length; row++)
                 {
-                    if (columns[i].canMove)
+                    if (columns[i].GetCanMove())
                     {
                         if (slotMatrix[row][i].transform.position != rows[row].slotLocation[i])
                         {
                             if (!lightning || currentBonus != SlotBonus.None)
                             {
-                                slotMatrix[row][i].transform.position = Vector3.MoveTowards(slotMatrix[row][i].transform.position, rows[row].slotLocation[i], moveObjectsInterval * Time.deltaTime);
+                                slotMatrix[row][i].transform.position = Vector3.MoveTowards(slotMatrix[row][i].transform.position, rows[row].slotLocation[i], moveToSlotInterval * Time.deltaTime);
                             }
                             else
                             {
-                                slotMatrix[row][i].transform.position = Vector3.MoveTowards(slotMatrix[row][i].transform.position, rows[row].slotLocation[i], lightningMoveObjectsInterval * Time.deltaTime);
+                                slotMatrix[row][i].transform.position = Vector3.MoveTowards(slotMatrix[row][i].transform.position, rows[row].slotLocation[i], lightningMoveToSlotInterval * Time.deltaTime);
                             }
                             moveObjects = true;
                         }
@@ -272,7 +291,7 @@ public class GameManager : MonoBehaviour
                 currentObjects.Remove(toRemove[i]);
                 Destroy(toRemove[i]);
             }
-        columns[colToArrange].canMove = true;
+        columns[colToArrange].SetCanMove(true);
         moveObjects = true;
     }
 
@@ -302,7 +321,7 @@ public class GameManager : MonoBehaviour
 
             for (int i = 0; i < columns.Length; i++)
             {
-                columns[i].canSpawnSymbol = true;
+                columns[i].SetCanSpawnSymbol(true);
             }
             for (int i = 0; i < rows.Length; i++)
             {
@@ -312,16 +331,16 @@ public class GameManager : MonoBehaviour
             {
                 if (!lightning || currentBonus != SlotBonus.None)
                 {
-                    columns[i].timeToNextSpawn = timeToNextSpawnBase;
+                    columns[i].SetTimeToNextSpawn(timeToNextSpawnBase);
                 }
                 else
                 {
-                    columns[i].timeToNextSpawn = lightningTimeToNextSpawnBase;
+                    columns[i].SetTimeToNextSpawn(lightningTimeToNextSpawnBase);
                 }
             }
             for(int i = 0; i < columns.Length; i++)
             {
-                columns[i].canMove = false;
+                columns[i].SetCanMove(false);
             }
 
             rolling = true;
@@ -334,12 +353,14 @@ public class GameManager : MonoBehaviour
     }
     private bool CheckIfAdjacent(int index1, int index2, List<int> rowList, List<int> colList)
     {
-        return((rowList[index1] + 1 == rowList[index2] || rowList[index1] - 1 == rowList[index2] || rowList[index1] == rowList[index2]) && (colList[index1] + 1 == colList[index2] || colList[index1] - 1 == colList[index2] || colList[index1] == colList[index2]));
+        return((rowList[index1] + 1 == rowList[index2] || rowList[index1] - 1 == rowList[index2] || rowList[index1] == rowList[index2]) &&
+            (colList[index1] + 1 == colList[index2] || colList[index1] - 1 == colList[index2] || colList[index1] == colList[index2]));
     }
     void SlotResults()
     {
         float payResult = 0;
         int scatterCounter = 0;
+        List<GameObject> connectingSymbols = new List<GameObject>();
         for(int nameIndex = 0; nameIndex < symbols.Length; nameIndex++)
         {
             int counter = 0;
@@ -351,7 +372,8 @@ public class GameManager : MonoBehaviour
             {
                 for (int col = 0; col < columns.Length; col++)
                 {
-                    if (slotMatrix[row][col].gameObject.name == symbols[nameIndex].symbolName + "(Clone)" || slotMatrix[row][col].gameObject.name ==  wildObjectName + "(Clone)") //need to change wild name
+                    if (slotMatrix[row][col].gameObject.name == symbols[nameIndex].symbolName + "(Clone)" || 
+                        slotMatrix[row][col].gameObject.name ==  wildObjectName + "(Clone)") 
                     {
                         rowList.Add(row);
                         colList.Add(col);
@@ -359,77 +381,32 @@ public class GameManager : MonoBehaviour
                     }
                 }
             }
-            //check for if index will be out of list
-            List<int> connectedIndex = new List<int>();
-            for(int i = 0; i < rowList.Count; i++)
+            if(connectionToCheck == PossibleConnections.Adjacent)
             {
-                for(int iTwo = i + 1; iTwo < rowList.Count; iTwo++)
+                int[] counterMultiArray = AdjacentConnectionCheck(rowList, colList, multiplier, counter, connectingSymbols);
+                counter = counterMultiArray[0];
+                multiplier = counterMultiArray[1];
+                if (multiplier > 1)
                 {
-                    if (!connectedIndex.Contains(iTwo) && CheckIfAdjacent(i, iTwo, rowList, colList))
-                    {
-                        if (currentBonus == SlotBonus.FruitMadness)
-                        {
-                            multiplier += slotMatrix[rowList[iTwo]][colList[iTwo]].gameObject.GetComponent<Symbol>().multiplier;
-                        }
-                        counter++;
-                        connectedIndex.Add(iTwo);
-                        if (!connectedIndex.Contains(i))
-                        {
-                            if (currentBonus == SlotBonus.FruitMadness)
-                            {
-                                multiplier += slotMatrix[rowList[i]][colList[i]].gameObject.GetComponent<Symbol>().multiplier;
-                            }
-                            counter++;
-                            connectedIndex.Add(i);
-                        }
-                    } 
+                    multiplier -= 1;
                 }
-                if(i > 0)
+                tempResult += (symbols[nameIndex].payMultiplier * coinBetSize);
+
+                //formula
+                if (counter > 2)
                 {
-                    if (i == rowList.Count - 1)
-                    {
-                        if (!connectedIndex.Contains(i - 1) && (rowList[i] + 1 == rowList[i - 1] || rowList[i] - 1 == rowList[i - 1] || rowList[i] == rowList[i - 1]) && (colList[i] + 1 == colList[i - 1] || colList[i] - 1 == colList[i - 1] || colList[i] == colList[i - 1]))
-                        {
-                            counter++;
-                            connectedIndex.Add(i - 1);
-                        }
-                    }
+                    tempResult *= (counter * counter * counter / (counter * 2 + 12));
+                    tempResult *= multiplier;
+                }
+                else
+                {
+                    tempResult = 0;
                 }
             }
 
-            tempResult += (symbols[nameIndex].payMultiplier * coinBetSize);
-            if(multiplier > 1)
-            {
-                multiplier -= 1;
-            }
             Debug.Log(symbols[nameIndex].symbolName);
             Debug.Log("multi: " + multiplier);
             Debug.Log("counter: " + counter);
-            //might need re-doing...
-            if (counter > 4)
-            {
-                tempResult *= (counter * (counter * 0.4f));
-                tempResult *= multiplier;
-
-            }
-            else if (counter == 4)
-            {
-                tempResult *= (counter * (counter * 0.2f));
-                tempResult *= multiplier;
-            }
-            else if(counter == 3)
-            {
-                tempResult *= (counter * (counter * 0.1f));
-                tempResult *= multiplier;
-            }
-            else if(counter == 0 || counter == 1 || counter == 2)
-            {
-                tempResult = 0;
-            }
-            else
-            {
-                tempResult *= counter;
-            }
             Debug.Log("PAID: " + tempResult);
             payResult += tempResult;
         }
@@ -437,6 +414,18 @@ public class GameManager : MonoBehaviour
         {
             for (int col = 0; col < columns.Length; col++)
             {
+                if (!connectingSymbols.Contains(slotMatrix[row][col].gameObject))
+                {
+                    slotMatrix[row][col].GetComponentInChildren<SpriteRenderer>().color = 
+                        new Color(slotMatrix[row][col].GetComponentInChildren<SpriteRenderer>().color.r, 
+                        slotMatrix[row][col].GetComponentInChildren<SpriteRenderer>().color.g, 
+                        slotMatrix[row][col].GetComponentInChildren<SpriteRenderer>().color.b, 
+                        .4f);
+                }
+                else
+                {
+                    //this is where you can start animations on objects connecting
+                }
                 if (slotMatrix[row][col].gameObject.name == scatterObjectName + "(Clone)")
                 {
                     scatterCounter += 1;
@@ -446,7 +435,7 @@ public class GameManager : MonoBehaviour
         
         if(scatterCounter >= requiredScattersForBonus)
         {
-            lastWinText.text = "Last Win: " + (int)Mathf.Round(payResult) + " coins";
+            lastWinText.text = "Last Win: " + Mathf.FloorToInt(payResult) + " coins";
             if(scatterCounter > requiredScattersForBonus)
             {
                 scatterCounter = ((scatterCounter - requiredScattersForBonus) * 2) + requiredScattersForBonus;
@@ -462,8 +451,8 @@ public class GameManager : MonoBehaviour
         {
             if (currentBonus == SlotBonus.None)
             {
-                AddCoins((int)Mathf.Round(payResult));
-                lastWinText.text = "Last Win: " + (int)Mathf.Round(payResult) + " coins";
+                AddCoins(Mathf.FloorToInt(payResult));
+                lastWinText.text = "Last Win: " + Mathf.FloorToInt(payResult) + " coins";
                 rollButton.enabled = true;
                 decreaseBetButton.enabled = true;
                 increaseBetButton.enabled = true;
@@ -472,15 +461,15 @@ public class GameManager : MonoBehaviour
                 lightningToggle.enabled = true;
             }
         }
-        if (currentBonus == SlotBonus.FruitMadness)
+        if (currentBonus != SlotBonus.None)
         {
-            coinsWonTracker += (int)Mathf.Round(payResult);
+            coinsWonTracker += Mathf.FloorToInt(payResult);
             currentBonusPayoutText.text = "Total Bonus Round Payout: " + coinsWonTracker + " coins";
-            lastWinText.text = "Last Win: " + (int)Mathf.Round(payResult) + " coins";
+            lastWinText.text = "Last Win: " + Mathf.FloorToInt(payResult) + " coins";
             currentBonusSpin += 1;
             if (currentBonusSpin > currentMaxBonusSpins)
             {
-                AddCoins((int)Mathf.Round(coinsWonTracker));
+                AddCoins(Mathf.FloorToInt(coinsWonTracker));
                 currentBonusPayoutText.text = "Total Bonus Round Payout: " + coinsWonTracker + " coins in " + currentMaxBonusSpins + " Spins";
                 currentBonus = SlotBonus.None;
                 currentMaxBonusSpins = 0;
@@ -502,13 +491,133 @@ public class GameManager : MonoBehaviour
 
     }
 
+    private int[] AdjacentConnectionCheck(List<int> rowList, List<int> colList, int multiplier, int counter, List<GameObject> connectingSymbols)
+    {
+        int[] counterMultiArray = new int[2];
+        //check for if index will be out of list
+        List<int> connectedIndex = new List<int>();
+        for (int i = 0; i < rowList.Count; i++)
+        {
+            for (int iTwo = i + 1; iTwo < rowList.Count; iTwo++)
+            {
+                if (CheckIfAdjacent(i, iTwo, rowList, colList) && (!connectedIndex.Contains(iTwo) || !connectedIndex.Contains(i)))
+                {
+                    if(!connectedIndex.Contains(iTwo))
+                    {
+                        if (currentBonus == SlotBonus.FruitMadness)
+                        {
+                            multiplier += slotMatrix[rowList[iTwo]][colList[iTwo]].gameObject.GetComponent<Symbol>().multiplier;
+                        }
+                        counter++;
+                        connectedIndex.Add(iTwo);
+                    }
+                    if (!connectedIndex.Contains(i))
+                    {
+                        if (currentBonus == SlotBonus.FruitMadness)
+                        {
+                            multiplier += slotMatrix[rowList[i]][colList[i]].gameObject.GetComponent<Symbol>().multiplier;
+                        }
+                        counter++;
+                        connectedIndex.Add(i);
+                    }
+                }
+            }
+            if (i > 0)
+            {
+                if (i == rowList.Count - 1)
+                {
+                    if (CheckIfAdjacent(i, i - 1, rowList, colList))
+                    {
+                        if(!connectedIndex.Contains(i - 1))
+                        {
+                            if (currentBonus == SlotBonus.FruitMadness)
+                            {
+                                multiplier += slotMatrix[rowList[i-1]][colList[i-1]].gameObject.GetComponent<Symbol>().multiplier;
+                            }
+                            counter++;
+                            connectedIndex.Add(i - 1);
+                        }
+                        if (!connectedIndex.Contains(i))
+                        {
+                            if (currentBonus == SlotBonus.FruitMadness)
+                            {
+                                multiplier += slotMatrix[rowList[i]][colList[i]].gameObject.GetComponent<Symbol>().multiplier;
+                            }
+                            counter++;
+                            connectedIndex.Add(i);
+                        }
+                    }
+                }
+            }
+        }
+        if(counter > 2)
+        {
+            List<List<int>> connectionsAtIndex = new List<List<int>>();
+            for(int i = 0; i < connectedIndex.Count; i++)
+            {
+                List<int> connections = new List<int>();
+                for (int iTwo = 0; iTwo < connectedIndex.Count; iTwo++)
+                {
+                    if(i != iTwo)
+                    {
+                        if(CheckIfAdjacent(connectedIndex[i], connectedIndex[iTwo], rowList, colList))
+                        {
+                            connections.Add(iTwo);
+                        }
+                    }
+                }
+                connectionsAtIndex.Add(connections);
+            }
+            List<int> numToRemove = new List<int>();
+            for (int i = 0; i < connectionsAtIndex.Count; i++)
+            {
+                for(int iTwo = 0; iTwo < connectionsAtIndex.Count; iTwo++)
+                {
+                    if(i != iTwo)
+                    {
+                        if(connectionsAtIndex[iTwo].Count == 1 && connectionsAtIndex[iTwo][0] == i && connectionsAtIndex[i].Count == 1 && connectionsAtIndex[i][0] == iTwo)
+                        {
+                            if (!numToRemove.Contains(connectedIndex[i]))
+                            {
+                                numToRemove.Add(connectedIndex[i]);
+                            }
+                            if (!numToRemove.Contains(connectedIndex[iTwo]))
+                            {
+                                numToRemove.Add(connectedIndex[iTwo]);
+                            }
+                        }
+                    }
+                }
+            }
+            if(numToRemove.Count > 0)
+            {
+                foreach(int index in numToRemove)
+                {
+                    multiplier -= slotMatrix[rowList[index]][colList[index]].gameObject.GetComponent<Symbol>().multiplier;
+                    counter--;
+                    connectedIndex.Remove(index);
+                }
+            }
+            for (int i = 0; i < connectedIndex.Count; i++)
+            {
+                if (!connectingSymbols.Contains(slotMatrix[rowList[connectedIndex[i]]][colList[connectedIndex[i]]].gameObject))
+                {
+                    connectingSymbols.Add(slotMatrix[rowList[connectedIndex[i]]][colList[connectedIndex[i]]].gameObject);
+                }
+            }
+        }
+        counterMultiArray[0] = counter;
+        counterMultiArray[1] = multiplier;
+        return counterMultiArray;
+    }
+
     private IEnumerator BonusStall()
     {
         yield return new WaitForSeconds(2.5f);
-        FruitMadnessSpins();
+        BonusSpins();
     }
 
-    void FruitMadnessSpins()
+    void BonusSpins()
     {
         bonusText.gameObject.SetActive(false);
         bonusSpinText.gameObject.SetActive(true);

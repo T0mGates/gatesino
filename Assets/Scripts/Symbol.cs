@@ -24,12 +24,12 @@ public class Symbol : MonoBehaviour
                 threeMulti.SetActive(true);
                 multiplier = 3;
             }
-            else if (randNum > 89 && randNum < 95)
+            else if (randNum > 89 && randNum < 96)
             {
                 fiveMulti.SetActive(true);
                 multiplier = 5;
             }
-            else if (randNum > 94 && randNum < 99)
+            else if (randNum > 95 && randNum < 99)
             {
                 tenMulti.SetActive(true);
                 multiplier = 10;
