@@ -82,31 +82,22 @@ public class GameManager : MonoBehaviour
     public SlotBonus slotBonus;
 
     private PlayerManager playerStats;
-    public Button rollButton;
-    public Button decreaseBetButton;
-    public Button increaseBetButton, increaseBetButtonTen, decreaseBetButtonTen;
-    public Text coinText;
-    public Text betSizeText;
-    public Text lastWinText;
-    public Text bonusText;
-    public Text bonusSpinText;
-    public Text currentBonusPayoutText;
 
     private int currentBonusSpin, currentMaxBonusSpins;
     private int coinsWonTracker = 0;
     private float lightningSpawnDecreaseInterval, lightningSpeedDecreaseInterval, lightningMoveToSlotInterval, lightningInitialSpeedPerFrame, lightningTimeToNextSpawnBase;
     private bool lightning = false;
-    public Toggle lightningToggle;
-
+    private UIManager ui;
 
     void Start()
     {
         playerStats = GameObject.FindGameObjectWithTag("Player").GetComponent<PlayerManager>();
-        lightningSpawnDecreaseInterval = spawnDecreaseInterval;
+        ui = GameObject.FindGameObjectWithTag("UIManager").GetComponent<UIManager>();
+        lightningSpawnDecreaseInterval = spawnDecreaseInterval/2;
         lightningSpeedDecreaseInterval = speedDecreaseInterval * 4;
         lightningMoveToSlotInterval = moveToSlotInterval * 6;
-        lightningInitialSpeedPerFrame = initialSpeedPerFrame * 3f;
-        lightningTimeToNextSpawnBase = timeToNextSpawnBase / 3f;
+        lightningInitialSpeedPerFrame = initialSpeedPerFrame * 3;
+        lightningTimeToNextSpawnBase = timeToNextSpawnBase / 3;
     }
 
     void Update()
@@ -119,7 +110,7 @@ public class GameManager : MonoBehaviour
                 {
                     if (columns[i].GetTimeToStop() - Time.time <= 1.5f && columns[i].GetTimeToStop() - Time.time > 0)
                     {
-                        if (columns[i].GetSpeed() != 0)
+                        if (columns[i].GetSpeed() < 0)
                         {
                             if (!lightning || currentBonus != SlotBonus.None)
                             {
@@ -131,6 +122,10 @@ public class GameManager : MonoBehaviour
                                 columns[i].SetSpeed(columns[i].GetSpeed() + (lightningSpeedDecreaseInterval * Time.deltaTime));
                                 columns[i].SetTimeToNextSpawn(columns[i].GetTimeToNextSpawn() + (lightningSpawnDecreaseInterval * Time.deltaTime));
                             }
+                        }
+                        else
+                        {
+                            columns[i].SetSpeed(0);
                         }
                     }
                     else if (columns[i].GetTimeToStop() - Time.time <= 0)
@@ -144,7 +139,7 @@ public class GameManager : MonoBehaviour
                 bool stoppedSlot = true;
                 for(int i = 0; i < columns.Length; i++)
                 {
-                    if(columns[i].GetSpeed() != 0)
+                    if(columns[i].GetCanSpawnSymbol())
                     {
                         stoppedSlot = false;
                     }
@@ -242,7 +237,7 @@ public class GameManager : MonoBehaviour
     void AddCoins(int coinsToAdd)
     {
         playerStats.coins += coinsToAdd;
-        coinText.text = "Coins: " + playerStats.coins;
+        ui.SetCoinText(playerStats.coins.ToString());
     }
 
     //moves object towards given target location, called until it is at target location (detect if y is greater or lower to know to move up or down)
@@ -301,15 +296,9 @@ public class GameManager : MonoBehaviour
         {
             if(currentBonus == SlotBonus.None)
             {
-                currentBonusPayoutText.gameObject.SetActive(false);
                 AddCoins(coinBetSize * -1);
             }
-            rollButton.enabled = false;
-            decreaseBetButton.enabled = false;
-            increaseBetButton.enabled = false;
-            increaseBetButtonTen.enabled = false;
-            decreaseBetButtonTen.enabled = false;
-            lightningToggle.enabled = false;
+            ui.StartSpin(currentBonus == SlotBonus.None);
             slotMatrix.Clear();
             usedObjects.Clear();
             foreach (GameObject objects in currentObjects)
@@ -403,11 +392,12 @@ public class GameManager : MonoBehaviour
                     tempResult = 0;
                 }
             }
-
+            /*
             Debug.Log(symbols[nameIndex].symbolName);
             Debug.Log("multi: " + multiplier);
             Debug.Log("counter: " + counter);
             Debug.Log("PAID: " + tempResult);
+            */
             payResult += tempResult;
         }
         for (int row = 0; row < rows.Length; row++)
@@ -421,10 +411,11 @@ public class GameManager : MonoBehaviour
                         slotMatrix[row][col].GetComponentInChildren<SpriteRenderer>().color.g, 
                         slotMatrix[row][col].GetComponentInChildren<SpriteRenderer>().color.b, 
                         .4f);
+                    slotMatrix[row][col].GetComponent<Symbol>().TransparentMultiplier();
                 }
                 else
                 {
-                    //this is where you can start animations on objects connecting
+                    slotMatrix[row][col].GetComponentInChildren<Animator>().SetTrigger("SpinEnd");
                 }
                 if (slotMatrix[row][col].gameObject.name == scatterObjectName + "(Clone)")
                 {
@@ -435,53 +426,37 @@ public class GameManager : MonoBehaviour
         
         if(scatterCounter >= requiredScattersForBonus)
         {
-            lastWinText.text = "Last Win: " + Mathf.FloorToInt(payResult) + " coins";
-            if(scatterCounter > requiredScattersForBonus)
+            if (scatterCounter > requiredScattersForBonus)
             {
                 scatterCounter = ((scatterCounter - requiredScattersForBonus) * 2) + requiredScattersForBonus;
             }
             currentMaxBonusSpins += baseBonusSpins + scatterCounter;
             currentBonus = slotBonus;
-            bonusText.text = "You Have Won " + (baseBonusSpins + scatterCounter) + " Free Spins!";
-            bonusText.gameObject.SetActive(true);
-            currentBonusPayoutText.text = "Total Bonus Round Payout: " + coinsWonTracker + " coins";
-            currentBonusPayoutText.gameObject.SetActive(true);
+            ui.TriggeredBonus(Mathf.FloorToInt(payResult), baseBonusSpins + scatterCounter, coinsWonTracker);
         }
         else
         {
             if (currentBonus == SlotBonus.None)
             {
                 AddCoins(Mathf.FloorToInt(payResult));
-                lastWinText.text = "Last Win: " + Mathf.FloorToInt(payResult) + " coins";
-                rollButton.enabled = true;
-                decreaseBetButton.enabled = true;
-                increaseBetButton.enabled = true;
-                decreaseBetButtonTen.enabled = true;
-                increaseBetButtonTen.enabled = true;
-                lightningToggle.enabled = true;
+                ui.EndSpin(Mathf.FloorToInt(payResult), false, 0);
             }
         }
         if (currentBonus != SlotBonus.None)
         {
             coinsWonTracker += Mathf.FloorToInt(payResult);
-            currentBonusPayoutText.text = "Total Bonus Round Payout: " + coinsWonTracker + " coins";
-            lastWinText.text = "Last Win: " + Mathf.FloorToInt(payResult) + " coins";
+            ui.EndBonusSpin(coinsWonTracker, Mathf.FloorToInt(payResult));
+
             currentBonusSpin += 1;
             if (currentBonusSpin > currentMaxBonusSpins)
             {
                 AddCoins(Mathf.FloorToInt(coinsWonTracker));
-                currentBonusPayoutText.text = "Total Bonus Round Payout: " + coinsWonTracker + " coins in " + currentMaxBonusSpins + " Spins";
+                ui.EndSpin(Mathf.FloorToInt(payResult), true, coinsWonTracker);
+
                 currentBonus = SlotBonus.None;
                 currentMaxBonusSpins = 0;
                 currentBonusSpin = 0;
                 coinsWonTracker = 0;
-                rollButton.enabled = true;
-                decreaseBetButton.enabled = true;
-                increaseBetButton.enabled = true;
-                increaseBetButtonTen.enabled = true;
-                decreaseBetButtonTen.enabled = true;
-                lightningToggle.enabled = true;
-                bonusSpinText.gameObject.SetActive(false);
             }
             else
             {
@@ -619,9 +594,7 @@ public class GameManager : MonoBehaviour
 
     void BonusSpins()
     {
-        bonusText.gameObject.SetActive(false);
-        bonusSpinText.gameObject.SetActive(true);
-        bonusSpinText.text = "Bonus Spin: " + currentBonusSpin + " / " + currentMaxBonusSpins;
+        ui.StartBonusSpin(currentBonusSpin, currentMaxBonusSpins);
         Roll();
     }
 
@@ -653,24 +626,10 @@ public class GameManager : MonoBehaviour
             }
         }
 
-    public void IncreaseBetSize(int betSize)
-    {
-        coinBetSize += betSize;
-        betSizeText.text = "Bet Size: " + coinBetSize + " coins";
-    }
+    public void SetLightning(bool value) { lightning = value; }
 
-    public void DecreaseBetSize(int betSize)
-    {
-        if(coinBetSize - betSize >= 10)
-        {
-            coinBetSize -= betSize;
-        }
-        betSizeText.text = "Bet Size: " + coinBetSize + " coins";
-    }
+    public void SetCoinBetSize(int amount) { if (amount > 9999) { amount = 9999; } coinBetSize = amount; }
 
-    public void LightningSpinChange(bool newBool)
-    {
-        lightning = newBool;
-    }
-
+    public int GetCoinBetSize() { return coinBetSize; }
+    
 }
