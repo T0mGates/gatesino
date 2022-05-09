@@ -1,10 +1,10 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.UI;
 
 public class GameManager : MonoBehaviour
 {
+    private SoundManager soundManager;
     public enum SlotBonus
     {
         FruitMadness,
@@ -91,6 +91,7 @@ public class GameManager : MonoBehaviour
 
     void Start()
     {
+        soundManager = GameObject.FindGameObjectWithTag("SoundManager").GetComponent<SoundManager>();
         playerStats = GameObject.FindGameObjectWithTag("Player").GetComponent<PlayerManager>();
         ui = GameObject.FindGameObjectWithTag("UIManager").GetComponent<UIManager>();
         lightningSpawnDecreaseInterval = spawnDecreaseInterval/2;
@@ -288,6 +289,7 @@ public class GameManager : MonoBehaviour
             }
         columns[colToArrange].SetCanMove(true);
         moveObjects = true;
+        soundManager.PlaySound("ReelStop");
     }
 
     public void Roll()
@@ -423,7 +425,8 @@ public class GameManager : MonoBehaviour
                 }
             }
         }
-        
+
+        bool triggeredBonus = false;
         if(scatterCounter >= requiredScattersForBonus)
         {
             if (scatterCounter > requiredScattersForBonus)
@@ -433,25 +436,26 @@ public class GameManager : MonoBehaviour
             currentMaxBonusSpins += baseBonusSpins + scatterCounter;
             currentBonus = slotBonus;
             ui.TriggeredBonus(Mathf.FloorToInt(payResult), baseBonusSpins + scatterCounter, coinsWonTracker);
+            triggeredBonus = true;
         }
         else
         {
             if (currentBonus == SlotBonus.None)
             {
                 AddCoins(Mathf.FloorToInt(payResult));
-                ui.EndSpin(Mathf.FloorToInt(payResult), false, 0);
+                ui.EndSpin(Mathf.FloorToInt(payResult), false, 0, triggeredBonus);
             }
         }
         if (currentBonus != SlotBonus.None)
         {
             coinsWonTracker += Mathf.FloorToInt(payResult);
-            ui.EndBonusSpin(coinsWonTracker, Mathf.FloorToInt(payResult));
+            ui.EndBonusSpin(coinsWonTracker, Mathf.FloorToInt(payResult), triggeredBonus);
 
             currentBonusSpin += 1;
             if (currentBonusSpin > currentMaxBonusSpins)
             {
                 AddCoins(Mathf.FloorToInt(coinsWonTracker));
-                ui.EndSpin(Mathf.FloorToInt(payResult), true, coinsWonTracker);
+                ui.EndSpin(Mathf.FloorToInt(payResult), true, coinsWonTracker, triggeredBonus);
 
                 currentBonus = SlotBonus.None;
                 currentMaxBonusSpins = 0;
@@ -598,33 +602,33 @@ public class GameManager : MonoBehaviour
         Roll();
     }
 
-        void Spawn(Vector3 location)
+    void Spawn(Vector3 location)
+    {
+        int randNum = Random.Range(1, 101);
+        bool found = false;
+        for(int i = 0; i < symbols.Length; i++)
         {
-            int randNum = Random.Range(1, 101);
-            bool found = false;
-            for(int i = 0; i < symbols.Length; i++)
+            if (!found)
             {
-                if (!found)
+                if (i == 0)
                 {
-                    if (i == 0)
+                    if (randNum > 0 && randNum <= symbols[0].intervalSpawnChance)
                     {
-                        if (randNum > 0 && randNum <= symbols[0].intervalSpawnChance)
-                        {
-                            currentObjects.Add(Instantiate(symbols[i].symbol, location, Quaternion.identity));
-                            found = true;
-                        }
+                        currentObjects.Add(Instantiate(symbols[i].symbol, location, Quaternion.identity));
+                        found = true;
                     }
-                    else
+                }
+                else
+                {
+                    if (randNum > symbols[i - 1].intervalSpawnChance && randNum <= symbols[i].intervalSpawnChance)
                     {
-                        if (randNum > symbols[i - 1].intervalSpawnChance && randNum <= symbols[i].intervalSpawnChance)
-                        {
-                            currentObjects.Add(Instantiate(symbols[i].symbol, location, Quaternion.identity));
-                            found = true;
-                        }
+                        currentObjects.Add(Instantiate(symbols[i].symbol, location, Quaternion.identity));
+                        found = true;
                     }
                 }
             }
         }
+    }
 
     public void SetLightning(bool value) { lightning = value; }
 

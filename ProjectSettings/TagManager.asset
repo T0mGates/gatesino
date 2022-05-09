@@ -8,6 +8,7 @@ TagManager:
   - GameManager
   - Slot
   - UIManager
+  - SoundManager
   layers:
   - Default
   - TransparentFX
