@@ -7,16 +7,17 @@ using TMPro;
 public class UIManager : MonoBehaviour
 {
     [SerializeField]
-    private Button rollButton, increaseBetButton, increaseBetButtonTen, decreaseBetButtonTen, decreaseBetButton;
+    private Button rollButton, increaseBetButton, increaseBetButtonTen, decreaseBetButtonTen, decreaseBetButton, decreaseBetButtonHundred, increaseBetButtonHundred, buyBonusButton, noButton, yesButton;
     [SerializeField]
-    private TextMeshProUGUI coinText, lastWinText, bonusText, bonusSpinText, currentBonusPayoutText, betSizeText, titleText;
+    private TextMeshProUGUI coinText, lastWinText, bonusText, bonusSpinText, currentBonusPayoutText, betSizeText, titleText, bonusCostText;
     [SerializeField]
-    private Toggle lightningToggle;
+    private Toggle lightningToggle, autoPlayToggle;
+    [SerializeField]
+    private GameObject bonusPanel;
     private SoundManager soundManager;
+    private bool autoPlay = false;
 
     GameManager gameManager;
-
-    private Dictionary<string, Sprite> spriteDictionary = new Dictionary<string, Sprite>();
 
     public void Start()
     {
@@ -33,12 +34,7 @@ public class UIManager : MonoBehaviour
     {
         soundManager.PlaySound("SpinDown");
         soundManager.PlaySound("ReelSpin");
-        rollButton.enabled = false;
-        decreaseBetButton.enabled = false;
-        increaseBetButton.enabled = false;
-        increaseBetButtonTen.enabled = false;
-        decreaseBetButtonTen.enabled = false;
-        lightningToggle.enabled = false;
+        EnableAllButtons(false);
         if (notInBonus)
         {
             titleText.gameObject.SetActive(true);
@@ -47,10 +43,12 @@ public class UIManager : MonoBehaviour
         }
     }
 
-    public void TriggeredBonus(int lastWin, int wonSpins, int coinsWonTracker)
+    public void TriggeredBonus(int lastWin, int wonSpins, int coinsWonTracker, string bgm, string bonusBgm)
     {
         soundManager.PlaySound("BonusTrigger");
         soundManager.StopSound("ReelSpin");
+        soundManager.StopSound(bgm);
+        soundManager.PlaySound(bonusBgm);
         lastWinText.text = "Last Win: " + lastWin;
         bonusText.text = "You Have Won " + wonSpins + " Fruit Madness Spins!";
         bonusText.gameObject.SetActive(true);
@@ -60,7 +58,7 @@ public class UIManager : MonoBehaviour
         bonusSpinText.gameObject.SetActive(false);
     }
 
-    public void EndSpin(int payResult, bool bonusEnded, int coinsWonTracker, bool triggeredBon)
+    public void EndSpin(int payResult, bool bonusEnded, int coinsWonTracker, bool triggeredBon, string bgm, string bonusBgm)
     {
         soundManager.StopSound("ReelSpin");
         if (payResult > 0)
@@ -78,14 +76,14 @@ public class UIManager : MonoBehaviour
             }
         }
         lastWinText.text = "Last Win: " + payResult;
-        rollButton.enabled = true;
-        decreaseBetButton.enabled = true;
-        increaseBetButton.enabled = true;
-        decreaseBetButtonTen.enabled = true;
-        increaseBetButtonTen.enabled = true;
-        lightningToggle.enabled = true;
+        EnableAllButtons(!autoPlay);
         if (bonusEnded)
         {
+            if (!triggeredBon)
+            {
+                soundManager.StopSound(bonusBgm);
+                soundManager.PlaySound(bgm);
+            }
             currentBonusPayoutText.text = "Total Win: " + coinsWonTracker;
         }
     }
@@ -199,5 +197,75 @@ public class UIManager : MonoBehaviour
             soundManager.PlaySound("LightningUp");
         }
         gameManager.SetLightning(newBool);
+    }
+
+    public void AutoplayChange(bool newBool)
+    {
+        if (newBool)
+        {
+            soundManager.PlaySound("LightningDown");
+        }
+        else
+        {
+            soundManager.PlaySound("LightningUp");
+        }
+        autoPlay = newBool;
+        if (autoPlay)
+        {
+            EnableAllButtons(false);
+        }
+        else
+        {
+            if (!gameManager.GetIsRolling())
+            {
+                EnableAllButtons(true);
+            }
+        }
+        bool worked = gameManager.SetAutoplay(newBool);
+        if (!worked)
+        {
+            AutoplayError();
+        }
+    }
+
+    public void AutoplayError()
+    {
+        soundManager.PlaySound("Error");
+        EnableAllButtons(true);
+        autoPlay = false;
+        autoPlayToggle.GetComponent<Toggle>().isOn = false;
+    }
+
+    public void EnableAllButtons(bool value)
+    {
+        decreaseBetButton.enabled = value;
+        decreaseBetButtonTen.enabled = value;
+        decreaseBetButtonHundred.enabled = value;
+        increaseBetButton.enabled = value;
+        increaseBetButtonTen.enabled = value;
+        increaseBetButtonHundred.enabled = value;
+        rollButton.enabled = value;
+        lightningToggle.enabled = value;
+        buyBonusButton.enabled = value;
+        noButton.enabled = value;
+        yesButton.enabled = value;
+    }
+
+    public void ShowBonusPanel(bool value)
+    {
+        if (value)
+        {
+            soundManager.PlaySound("BonusButton");
+        }
+        else
+        {
+            soundManager.PlaySound("NoButton");
+        }
+        bonusPanel.SetActive(value);
+    }
+
+    public void ChangeBonusCost(int amount)
+    {
+        bonusCostText.text = amount.ToString();
     }
 }

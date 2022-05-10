@@ -4,7 +4,11 @@ using UnityEngine;
 
 public class GameManager : MonoBehaviour
 {
+    private bool cantAutoplay = false;
     private SoundManager soundManager;
+    private bool autoPlay = false;
+    public string BGMName;
+    public string BonusBGMName;
     public enum SlotBonus
     {
         FruitMadness,
@@ -32,6 +36,7 @@ public class GameManager : MonoBehaviour
         public int intervalSpawnChance;
         public float payMultiplier;
         public string symbolName;
+        public int minSymbolsToConnect;
     }
     public SymbolObject[] symbols;
 
@@ -89,7 +94,7 @@ public class GameManager : MonoBehaviour
     private bool lightning = false;
     private UIManager ui;
 
-    void Start()
+    IEnumerator Start()
     {
         soundManager = GameObject.FindGameObjectWithTag("SoundManager").GetComponent<SoundManager>();
         playerStats = GameObject.FindGameObjectWithTag("Player").GetComponent<PlayerManager>();
@@ -99,6 +104,9 @@ public class GameManager : MonoBehaviour
         lightningMoveToSlotInterval = moveToSlotInterval * 6;
         lightningInitialSpeedPerFrame = initialSpeedPerFrame * 3;
         lightningTimeToNextSpawnBase = timeToNextSpawnBase / 3;
+        AddCoins(0);
+        yield return new WaitForSeconds(0.05f);
+        soundManager.PlaySound(BGMName);
     }
 
     void Update()
@@ -338,7 +346,7 @@ public class GameManager : MonoBehaviour
         }
         else
         {
-            Debug.Log("Not Enough Coins!");
+            soundManager.PlaySound("Error");
         }
         
     }
@@ -352,8 +360,9 @@ public class GameManager : MonoBehaviour
         float payResult = 0;
         int scatterCounter = 0;
         List<GameObject> connectingSymbols = new List<GameObject>();
-        for(int nameIndex = 0; nameIndex < symbols.Length; nameIndex++)
+        for (int nameIndex = 0; nameIndex < symbols.Length; nameIndex++)
         {
+            int minConnections = symbols[nameIndex].minSymbolsToConnect;
             int counter = 0;
             int multiplier = 1;
             List<int> rowList = new List<int>();
@@ -363,8 +372,8 @@ public class GameManager : MonoBehaviour
             {
                 for (int col = 0; col < columns.Length; col++)
                 {
-                    if (slotMatrix[row][col].gameObject.name == symbols[nameIndex].symbolName + "(Clone)" || 
-                        slotMatrix[row][col].gameObject.name ==  wildObjectName + "(Clone)") 
+                    if (slotMatrix[row][col].gameObject.name == symbols[nameIndex].symbolName + "(Clone)" ||
+                        slotMatrix[row][col].gameObject.name == wildObjectName + "(Clone)")
                     {
                         rowList.Add(row);
                         colList.Add(col);
@@ -372,9 +381,9 @@ public class GameManager : MonoBehaviour
                     }
                 }
             }
-            if(connectionToCheck == PossibleConnections.Adjacent)
+            if (connectionToCheck == PossibleConnections.Adjacent)
             {
-                int[] counterMultiArray = AdjacentConnectionCheck(rowList, colList, multiplier, counter, connectingSymbols);
+                int[] counterMultiArray = AdjacentConnectionCheck(rowList, colList, multiplier, counter, connectingSymbols, minConnections);
                 counter = counterMultiArray[0];
                 multiplier = counterMultiArray[1];
                 if (multiplier > 1)
@@ -384,9 +393,10 @@ public class GameManager : MonoBehaviour
                 tempResult += (symbols[nameIndex].payMultiplier * coinBetSize);
 
                 //formula
-                if (counter > 2)
+                if (counter >= minConnections)
                 {
-                    tempResult *= (counter * counter * counter / (counter * 2 + 12));
+                    float counterFloat = counter;
+                    tempResult *= (counterFloat * counterFloat * counterFloat / ((counterFloat * 2) + 12));
                     tempResult *= multiplier;
                 }
                 else
@@ -394,31 +404,12 @@ public class GameManager : MonoBehaviour
                     tempResult = 0;
                 }
             }
-            /*
-            Debug.Log(symbols[nameIndex].symbolName);
-            Debug.Log("multi: " + multiplier);
-            Debug.Log("counter: " + counter);
-            Debug.Log("PAID: " + tempResult);
-            */
             payResult += tempResult;
         }
         for (int row = 0; row < rows.Length; row++)
         {
             for (int col = 0; col < columns.Length; col++)
             {
-                if (!connectingSymbols.Contains(slotMatrix[row][col].gameObject))
-                {
-                    slotMatrix[row][col].GetComponentInChildren<SpriteRenderer>().color = 
-                        new Color(slotMatrix[row][col].GetComponentInChildren<SpriteRenderer>().color.r, 
-                        slotMatrix[row][col].GetComponentInChildren<SpriteRenderer>().color.g, 
-                        slotMatrix[row][col].GetComponentInChildren<SpriteRenderer>().color.b, 
-                        .4f);
-                    slotMatrix[row][col].GetComponent<Symbol>().TransparentMultiplier();
-                }
-                else
-                {
-                    slotMatrix[row][col].GetComponentInChildren<Animator>().SetTrigger("SpinEnd");
-                }
                 if (slotMatrix[row][col].gameObject.name == scatterObjectName + "(Clone)")
                 {
                     scatterCounter += 1;
@@ -427,7 +418,7 @@ public class GameManager : MonoBehaviour
         }
 
         bool triggeredBonus = false;
-        if(scatterCounter >= requiredScattersForBonus)
+        if (scatterCounter >= requiredScattersForBonus)
         {
             if (scatterCounter > requiredScattersForBonus)
             {
@@ -435,7 +426,7 @@ public class GameManager : MonoBehaviour
             }
             currentMaxBonusSpins += baseBonusSpins + scatterCounter;
             currentBonus = slotBonus;
-            ui.TriggeredBonus(Mathf.FloorToInt(payResult), baseBonusSpins + scatterCounter, coinsWonTracker);
+            ui.TriggeredBonus(Mathf.FloorToInt(payResult), baseBonusSpins + scatterCounter, coinsWonTracker, BGMName, BonusBGMName);
             triggeredBonus = true;
         }
         else
@@ -443,7 +434,11 @@ public class GameManager : MonoBehaviour
             if (currentBonus == SlotBonus.None)
             {
                 AddCoins(Mathf.FloorToInt(payResult));
-                ui.EndSpin(Mathf.FloorToInt(payResult), false, 0, triggeredBonus);
+                ui.EndSpin(Mathf.FloorToInt(payResult), false, 0, triggeredBonus, BGMName, BonusBGMName);
+                if (autoPlay)
+                {
+                    StartCoroutine(AutoplayStart());
+                }
             }
         }
         if (currentBonus != SlotBonus.None)
@@ -455,8 +450,11 @@ public class GameManager : MonoBehaviour
             if (currentBonusSpin > currentMaxBonusSpins)
             {
                 AddCoins(Mathf.FloorToInt(coinsWonTracker));
-                ui.EndSpin(Mathf.FloorToInt(payResult), true, coinsWonTracker, triggeredBonus);
-
+                ui.EndSpin(Mathf.FloorToInt(payResult), true, coinsWonTracker, triggeredBonus, BGMName, BonusBGMName);
+                if (autoPlay)
+                {
+                    StartCoroutine(AutoplayStart());
+                }
                 currentBonus = SlotBonus.None;
                 currentMaxBonusSpins = 0;
                 currentBonusSpin = 0;
@@ -467,10 +465,56 @@ public class GameManager : MonoBehaviour
                 StartCoroutine(BonusStall());
             }
         }
-
+        for (int row = 0; row < rows.Length; row++)
+        {
+            for (int col = 0; col < columns.Length; col++)
+            {
+                if (!connectingSymbols.Contains(slotMatrix[row][col].gameObject))
+                {
+                    if (slotMatrix[row][col].gameObject.name == scatterObjectName + "(Clone)" && triggeredBonus)
+                    {
+                        slotMatrix[row][col].GetComponentInChildren<Animator>().SetTrigger("SpinEnd");
+                    }
+                    else
+                    {
+                        slotMatrix[row][col].GetComponentInChildren<SpriteRenderer>().color =
+                        new Color(slotMatrix[row][col].GetComponentInChildren<SpriteRenderer>().color.r,
+                        slotMatrix[row][col].GetComponentInChildren<SpriteRenderer>().color.g,
+                        slotMatrix[row][col].GetComponentInChildren<SpriteRenderer>().color.b,
+                        .4f);
+                        slotMatrix[row][col].GetComponent<Symbol>().TransparentMultiplier();
+                    }
+                }
+                else
+                {
+                    slotMatrix[row][col].GetComponentInChildren<Animator>().SetTrigger("SpinEnd");
+                }
+            }
+        }
     }
 
-    private int[] AdjacentConnectionCheck(List<int> rowList, List<int> colList, int multiplier, int counter, List<GameObject> connectingSymbols)
+    private IEnumerator AutoplayStart()
+    {
+        if (lightning)
+        {
+            yield return new WaitForSeconds(.5f);
+        }
+        else
+        {
+            yield return new WaitForSeconds(1.75f);
+        }
+        if (autoPlay && !rolling)
+        {
+            bool worked = (ReturnCoins() >= coinBetSize);
+            Roll();
+            if (!worked)
+            {
+                ui.AutoplayError();
+            }
+        }
+    }
+
+    private int[] AdjacentConnectionCheck(List<int> rowList, List<int> colList, int multiplier, int counter, List<GameObject> connectingSymbols, int minConnections)
     {
         int[] counterMultiArray = new int[2];
         //check for if index will be out of list
@@ -529,7 +573,7 @@ public class GameManager : MonoBehaviour
                 }
             }
         }
-        if(counter > 2)
+        if(counter >= minConnections)
         {
             List<List<int>> connectionsAtIndex = new List<List<int>>();
             for(int i = 0; i < connectedIndex.Count; i++)
@@ -554,7 +598,7 @@ public class GameManager : MonoBehaviour
                 {
                     if(i != iTwo)
                     {
-                        if(connectionsAtIndex[iTwo].Count == 1 && connectionsAtIndex[iTwo][0] == i && connectionsAtIndex[i].Count == 1 && connectionsAtIndex[i][0] == iTwo)
+                        if(connectionsAtIndex[iTwo].Count == 1 && connectionsAtIndex[iTwo][0] == i && connectionsAtIndex[i].Count == 1 && connectionsAtIndex[i][0] == iTwo && minConnections > 2)
                         {
                             if (!numToRemove.Contains(connectedIndex[i]))
                             {
@@ -593,6 +637,7 @@ public class GameManager : MonoBehaviour
     private IEnumerator BonusStall()
     {
         yield return new WaitForSeconds(2.5f);
+        cantAutoplay = false;
         BonusSpins();
     }
 
@@ -632,8 +677,48 @@ public class GameManager : MonoBehaviour
 
     public void SetLightning(bool value) { lightning = value; }
 
+    public bool SetAutoplay(bool value) { 
+        autoPlay = value; 
+        if (autoPlay && !rolling && !cantAutoplay) 
+        {
+            bool worked = false;
+            if(ReturnCoins() >= coinBetSize)
+            {
+                worked = true;
+            }
+            Roll();
+            return worked;
+        }
+        return true;
+    }
+
     public void SetCoinBetSize(int amount) { if (amount > 9999) { amount = 9999; } coinBetSize = amount; }
 
+    public bool GetIsRolling() { return rolling; }
     public int GetCoinBetSize() { return coinBetSize; }
-    
+
+    public void BonusCostCalc()
+    {
+        ui.ChangeBonusCost(coinBetSize * 100);
+    }
+
+    public void BuyBonus()
+    {
+        if(!rolling && ReturnCoins() >= coinBetSize * 100)
+        {
+            cantAutoplay = true;
+            AddCoins(coinBetSize * -100);
+            currentMaxBonusSpins = baseBonusSpins + requiredScattersForBonus;
+            currentBonus = slotBonus;
+            ui.TriggeredBonus(Mathf.FloorToInt(0),requiredScattersForBonus + baseBonusSpins, coinsWonTracker, BGMName, BonusBGMName);
+            ui.EndBonusSpin(coinsWonTracker, Mathf.FloorToInt(0), true);
+            currentBonusSpin += 1;
+            StartCoroutine(BonusStall());
+            ui.EnableAllButtons(false);
+        }
+        else
+        {
+            soundManager.PlaySound("Error");
+        }
+    }
 }

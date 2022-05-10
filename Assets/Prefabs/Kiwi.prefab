@@ -599,6 +599,7 @@ MonoBehaviour:
   tenMulti: {fileID: 3187390426097276265}
   twentyFiveMulti: {fileID: 1364186867535925491}
   multiplier: 0
+  minimumSymbolsToConnect: 2
 --- !u!50 &6916604340541144184
 Rigidbody2D:
   serializedVersion: 4
